@@ -1,0 +1,19 @@
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/activation}
+    username: ${SPRING_DATASOURCE_USERNAME:activation}
+    password: ${SPRING_DATASOURCE_PASSWORD:activation}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+provider:
+  stub: false
+  base-url: ${PROVIDER_BASE_URL:http://provider-mock:8080}
+
+logging:
+  structured:
+    format:
+      console: logstash

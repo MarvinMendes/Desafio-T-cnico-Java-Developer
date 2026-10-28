@@ -1,0 +1,392 @@
+{
+  "info": {
+    "name": "activation-service",
+    "description": "Coleção da API de ativação de produtos.\n\n**Como usar**\n1. Suba a aplicação (`./mvnw spring-boot:run` ou `docker compose up --build`).\n2. Importe este arquivo e o environment `activation-service.local.postman_environment.json`.\n3. Selecione o environment **activation-service (local)**.\n4. Execute a pasta **02. Fluxo feliz** em ordem (a criação grava `requestId`).\n\nTokens JWT de desenvolvimento (RS256 da chave do projeto, validade longa). Em produção use tokens do Authorization Server.\n\nEscopos: `requests:write` no POST, `requests:read` no GET.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "requestId",
+      "value": ""
+    },
+    {
+      "key": "externalId",
+      "value": "EXT-POSTMAN-001"
+    }
+  ],
+  "item": [
+    {
+      "name": "01. Actuator",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/actuator/health"
+          }
+        },
+        {
+          "name": "Liveness",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/actuator/health/liveness"
+          }
+        },
+        {
+          "name": "Readiness",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/actuator/health/readiness"
+          }
+        },
+        {
+          "name": "Info",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/actuator/info"
+          }
+        },
+        {
+          "name": "Prometheus",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/actuator/prometheus"
+          }
+        }
+      ]
+    },
+    {
+      "name": "02. Fluxo feliz",
+      "item": [
+        {
+          "name": "Criar solicitação",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('externalId', 'EXT-' + Date.now());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.test('Location', () => pm.response.to.have.header('Location'));",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('requestId', body.id);",
+                  "pm.collectionVariables.set('externalId', body.externalId);",
+                  "pm.test('status PENDING', () => pm.expect(body.status).to.eql('PENDING'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"externalId\": \"{{externalId}}\",\n  \"customerId\": \"CUST-10001\",\n  \"productCode\": \"INTERNET-500\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/requests",
+            "description": "Cria uma solicitação. Salva `requestId` e `externalId` para os próximos requests."
+          }
+        },
+        {
+          "name": "Buscar por id",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('mesmo id', () => pm.expect(pm.response.json().id).to.eql(pm.collectionVariables.get('requestId')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/requests/{{requestId}}"
+          }
+        },
+        {
+          "name": "Listar solicitações",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('paginação', () => pm.expect(pm.response.json()).to.have.property('content'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/requests?page=0&size=20"
+          }
+        },
+        {
+          "name": "Listar com filtros",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/requests?status=PENDING&customerId=CUST-10001&page=0&size=10"
+          }
+        }
+      ]
+    },
+    {
+      "name": "03. Validação e erros",
+      "item": [
+        {
+          "name": "Criar com dados inválidos",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Problem Details', () => {",
+                  "  pm.response.to.have.status(400);",
+                  "  pm.expect(pm.response.json().type).to.include('validation-error');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": "{{baseUrl}}/api/v1/requests"
+          }
+        },
+        {
+          "name": "Buscar id inexistente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/requests/00000000-0000-0000-0000-000000000000"
+          }
+        },
+        {
+          "name": "Retry mesmo payload (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 retry', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"externalId\": \"{{externalId}}\",\n  \"customerId\": \"CUST-10001\",\n  \"productCode\": \"INTERNET-500\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/requests",
+            "description": "Use depois de Criar solicitação. Mesmo externalId e mesmo conteúdo devem retornar 200."
+          }
+        },
+        {
+          "name": "Duplicidade com payload diferente (409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 Conflict', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"externalId\": \"{{externalId}}\",\n  \"customerId\": \"CUST-10001\",\n  \"productCode\": \"INTERNET-1000\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/requests"
+          }
+        }
+      ]
+    },
+    {
+      "name": "04. Segurança",
+      "item": [
+        {
+          "name": "Criar sem token (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"externalId\": \"EXT-NO-TOKEN\",\n  \"customerId\": \"CUST-10001\",\n  \"productCode\": \"INTERNET-500\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/requests"
+          }
+        },
+        {
+          "name": "Criar com escopo só leitura (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{readToken}}", "type": "string" }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"externalId\": \"EXT-READ-ONLY\",\n  \"customerId\": \"CUST-10001\",\n  \"productCode\": \"INTERNET-500\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/requests"
+          }
+        },
+        {
+          "name": "Listar com escopo só escrita (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{writeToken}}", "type": "string" }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/requests"
+          }
+        },
+        {
+          "name": "Buscar com outro cliente (BOLA 404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 para outro consumidor', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                { "key": "token", "value": "{{clientBToken}}", "type": "string" }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/requests/{{requestId}}",
+            "description": "system-b tenta ler a solicitação criada por system-a. Esperado: 404."
+          }
+        }
+      ]
+    }
+  ]
+}

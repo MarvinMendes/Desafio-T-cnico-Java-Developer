@@ -1,0 +1,8 @@
+target
+.idea
+.git
+.github
+*.iml
+docs
+README.md
+agent-tools
